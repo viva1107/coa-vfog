@@ -1,0 +1,35 @@
+name: Build coa-vfog
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      # CMakeLists 强制要求 32 位(-A Win32);fxc.exe 由镜像自带 Win10/11 SDK 提供
+      - name: Configure (VS2022, Win32)
+        run: cmake -S . -B build -G "Visual Studio 17 2022" -A Win32
+
+      - name: Build Release
+        run: cmake --build build --config Release
+
+      # vfog_harness 要创建真实 D3D9 设备,云主机没有 GPU,预期失败,不阻塞产物
+      - name: Run tests (best effort)
+        run: ctest --test-dir build -C Release --output-on-failure
+        continue-on-error: true
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: coa-vfog-release
+          path: |
+            build/Release/version.dll
+            build/Release/CoAVolFog.dll
+            build/Release/CoAVolFog.ini
+            build/Release/fogdata.bin
+          if-no-files-found: error
